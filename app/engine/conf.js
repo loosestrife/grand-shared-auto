@@ -1,0 +1,14 @@
+bind('w', '+forward');
+bind('s', '+backward');
+bind('a', '+move_left');
+bind('d', '+move_right');
+bind('shift', '+crouch');
+bind('space', '+jump');
+bind('q', 'item_use');
+bind('c', 'item_prev');
+bind('v', 'item_next');
+bind('mwheelup', 'weapon_prev');
+bind('mwheeldown', 'weapon_next');
+bind('mouse1', '+attack');
+bind('e', 'exit');
+bind('x', '+dive');

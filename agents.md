@@ -1,0 +1,3 @@
+1) This is a zero invention game engine as everything has been done already, so we are explicitly copying skyrim, quake, mario 64, gtav, and every decision to deviate from one of these must be justified
+2) quakec and papyrus conventions are used to ensure maximal compatibility between sloppers who dont know each other
+3) jshar is the build process.  the command jshar pack --pack-html app -o gsa.html builds the html 

@@ -1,0 +1,129 @@
+
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+		<title>You wouldn't download a car</title>
+		<style>
+			:root {
+				--bg: #e8edf0;
+				--ground: #d5dde2;
+				--bld: #8fa1ad;
+				--fg: #14232d;
+				--acc: #0e7c86;
+				--cop: #2f5bd1;
+				--bad: #c2255c;
+				color-scheme: light;
+				box-sizing: border-box;
+				padding-top: env(safe-area-inset-top, 0px);
+				padding-bottom: env(safe-area-inset-bottom, 0px)
+			}
+
+			@media(prefers-color-scheme:dark) {
+				:root:not([data-theme="light"]) {
+					--bg: #0f1a21;
+					--ground: #17252e;
+					--bld: #34505f;
+					--fg: #dfe9ee;
+					--acc: #3dd6c6;
+					--cop: #6c93ff;
+					--bad: #ff6b9a;
+					color-scheme: dark
+				}
+			}
+
+			:root[data-theme="dark"] {
+				--bg: #0f1a21;
+				--ground: #17252e;
+				--bld: #34505f;
+				--fg: #dfe9ee;
+				--acc: #3dd6c6;
+				--cop: #6c93ff;
+				--bad: #ff6b9a;
+				color-scheme: dark
+			}
+
+			html {
+				scroll-padding-top: env(safe-area-inset-top, 0px)
+			}
+
+			body {
+				margin: 0;
+				padding: 10px;
+				background: var(--bg);
+				color: var(--fg);
+				font: 15px/1.45 "Avenir Next", "Segoe UI", system-ui, sans-serif
+			}
+
+			main {
+				max-width: 960px;
+				margin: 0 auto
+			}
+
+			canvas {
+				width: 100%;
+				display: block;
+				border: 1px solid var(--bld);
+				border-radius: 4px;
+				background: var(--bg)
+			}
+
+			#hud {
+				white-space: pre-wrap;
+				margin: 8px 0
+			}
+
+			button {
+				font: inherit;
+				color: var(--fg);
+				background: var(--ground);
+				border: 1px solid var(--bld);
+				border-radius: 4px;
+				padding: 5px 12px;
+				margin: 0 6px 6px 0;
+				cursor: pointer
+			}
+
+			button:focus-visible {
+				outline: 2px solid var(--acc);
+				outline-offset: 2px
+			}
+
+			pre {
+				white-space: pre-wrap;
+				font: 12px/1.5 ui-monospace, Menlo, monospace;
+				opacity: .75;
+				margin: 8px 0
+			}
+
+		</style>
+	</head>
+
+	<body>
+		<main>
+			<canvas id="c"></canvas>
+			<div id="hud"></div>
+			<div>City: <button onclick="GSA.start({city:'sample'})">Test Valley</button><button onclick="GSA.start({city:'river'})">River City</button></div>
+			<div>Race: <button onclick="GSA.start({race:'nord'})">Nord</button><button onclick="GSA.start({race:'elf'})">Elf</button><button onclick="GSA.start({race:'martian'})">Martian</button></div>
+			<div>Interior: <button onclick="GSA.start({interior:'stock'})">Stock data center</button><button onclick="GSA.start({interior:'zombie'})">Zombie data center</button></div>
+			<pre id="log"></pre>
+			<p style="font-size:13px;opacity:.7">Click the game to capture the mouse (Esc releases; dragging also turns the camera). The mouse turns the camera and WASD moves relative to it. Space jumps, and Space again while airborne against a wall wall-jumps. Nord: jump, then C or Shift to ground pound. Elf: hold click or F for the frost beam. Martian: click or F fires plasma. Press E next to the red car to drive (W/S throttle, A/D steer, E exits); you can run cops over, and only the embassy door works from the car. Test Valley also has a gather-and-craft loop: pick up the luna moth wing (southeast) and ice wraith teeth (northwest), press E at the Alchemy Station (southeast) to brew, then Q to drink: cops and zombies lose you for 25 seconds. Plug in content from the console, for example <code>GSA.packs.races.mine = {...}</code> then <code>GSA.start({race:'mine'})</code>. Engine events such as <code>in:front</code>, <code>out:back</code>, <code>deliver</code> and <code>alarm_raised</code> go through a global bus, so hook them from the console with <code>GSA.bus.on('alarm_raised', (ctx) => ...)</code> (the callback receives the live state plus <code>ctx.heat(d)</code>).</p>
+		</main>
+		<!-- Libraries -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+		<script src="engine/bus.js"></script>
+		<script src="engine/inputs.js"></script>
+		<script src="data/conf.js"></script>
+		<script src="data/packs.js"></script>
+    <script src="engine/site.js"></script>
+		<script src="engine/physics.js"></script>
+		<script src="engine/ai.js"></script>
+		<script src="engine/scripting.js"></script>
+		<script src="engine/render.js"></script>
+		<script src="engine/ui.js"></script>
+		<script src="engine/engine.js"></script>
+		<script src="data/mario64.js"></script>
+		<script src="data/gtav.js"></script>

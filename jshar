@@ -1,0 +1,349 @@
+#!/usr/bin/env node
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+
+const BOUNDARY = '==JSHAR_V1_BOUNDARY==';
+const PAYLOAD_MARKER = '\n/*__JSHAR_PAYLOAD_START__*/\n';
+
+// -----------------------------------------------------------------------------
+// VIRTUAL FILESYSTEM & MULTIPART STREAM PARSER
+// -----------------------------------------------------------------------------
+class VirtualFS {
+  constructor(filePath) {
+    this.fd = fs.openSync(filePath, 'r');
+    this.entries = new Map(); // path -> { offset, length, headers, mime }
+    this.headerEndOffset = 0;
+    this._indexStream();
+  }
+
+  _indexStream() {
+    const stat = fs.fstatSync(this.fd);
+    const buf = Buffer.alloc(stat.size);
+    fs.readSync(this.fd, buf, 0, stat.size, 0);
+
+    const markerBuf = Buffer.from(PAYLOAD_MARKER, 'utf8');
+    const markerIdx = buf.indexOf(markerBuf);
+
+    if (markerIdx === -1) {
+      // Empty container or raw runtime script
+      this.headerEndOffset = stat.size;
+      return;
+    }
+
+    this.headerEndOffset = markerIdx + markerBuf.length;
+    let cursor = this.headerEndOffset;
+    const boundaryBuf = Buffer.from(`--${BOUNDARY}`);
+    const crlfcrlf = Buffer.from('\r\n\r\n');
+    const lflf = Buffer.from('\n\n');
+
+    while (cursor < stat.size) {
+      const bIdx = buf.indexOf(boundaryBuf, cursor);
+      if (bIdx === -1) break;
+
+      const headerStart = bIdx + boundaryBuf.length;
+      // End marker check (--BOUNDARY--)
+      if (buf[headerStart] === 45 && buf[headerStart + 1] === 45) break;
+
+      let sepLen = 4;
+      let sepIdx = buf.indexOf(crlfcrlf, headerStart);
+      if (sepIdx === -1) {
+        sepIdx = buf.indexOf(lflf, headerStart);
+        sepLen = 2;
+      }
+      if (sepIdx === -1) break;
+
+      const rawHeaders = buf.slice(headerStart, sepIdx).toString('utf8');
+      const headers = {};
+      rawHeaders.split(/\r?\n/).forEach(line => {
+        const colon = line.indexOf(':');
+        if (colon !== -1) {
+          const k = line.slice(0, colon).trim().toLowerCase();
+          const v = line.slice(colon + 1).trim();
+          headers[k] = v;
+        }
+      });
+
+      const bodyStart = sepIdx + sepLen;
+      const declaredLen = headers['content-length'] ? parseInt(headers['content-length'], 10) : null;
+      let bodyEnd;
+
+      if (declaredLen !== null && !isNaN(declaredLen)) {
+        bodyEnd = bodyStart + declaredLen;
+      } else {
+        const nextB = buf.indexOf(boundaryBuf, bodyStart);
+        bodyEnd = nextB !== -1 ? nextB : stat.size;
+      }
+
+      const vPath = headers['content-location'] || `/app/entry_${this.entries.size}`;
+      this.entries.set(vPath, {
+        offset: bodyStart,
+        length: bodyEnd - bodyStart,
+        headers,
+        mime: headers['content-type'] || 'application/octet-stream'
+      });
+
+      cursor = bodyEnd;
+    }
+  }
+
+  get(vPath) {
+    return this.entries.get(vPath);
+  }
+
+  createReadStream(vPath) {
+    const entry = this.get(vPath);
+    if (!entry) return null;
+    return fs.createReadStream('', {
+      fd: this.fd,
+      start: entry.offset,
+      end: entry.offset + entry.length - 1,
+      autoClose: false
+    });
+  }
+
+  readBuffer(vPath) {
+    const entry = this.get(vPath);
+    if (!entry) return null;
+    const buf = Buffer.alloc(entry.length);
+    fs.readSync(this.fd, buf, 0, entry.length, entry.offset);
+    return buf;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// MIME RESOLVER
+// -----------------------------------------------------------------------------
+const MIME_MAP = {
+  '.html': 'text/html; charset=utf-8',
+  '.js':   'text/javascript; charset=utf-8',
+  '.mjs':  'text/javascript; charset=utf-8',
+  '.css':  'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg':  'image/svg+xml',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.wasm': 'application/wasm'
+};
+
+// -----------------------------------------------------------------------------
+// PACK ENGINE (Creates or updates .jshar binaries)
+// -----------------------------------------------------------------------------
+function pack(sourceDir, targetArchive, selfVfs) {
+  const fullSource = path.resolve(sourceDir);
+  if (!fs.existsSync(fullSource) || !fs.statSync(fullSource).isDirectory()) {
+    console.error(`jshar: cannot pack '${sourceDir}' (directory not found)`);
+    process.exit(1);
+  }
+
+  // Extract base jshar runtime header directly from self
+  const stat = fs.fstatSync(selfVfs.fd);
+  const runtimeHeaderBuf = Buffer.alloc(selfVfs.headerEndOffset);
+  fs.readSync(selfVfs.fd, runtimeHeaderBuf, 0, selfVfs.headerEndOffset, 0);
+
+  const outFd = fs.openSync(path.resolve(targetArchive), 'w', 0o755);
+  fs.writeSync(outFd, runtimeHeaderBuf);
+
+  // Preserve internal system files (/sys/*) if carrying self-host payloads
+  for (const [vPath, entry] of selfVfs.entries.entries()) {
+    if (vPath.startsWith('/sys/')) {
+      const block = Buffer.concat([
+        Buffer.from(`\r\n--${BOUNDARY}\r\n`),
+        Buffer.from(`Content-Location: ${vPath}\r\n`),
+        Buffer.from(`Content-Type: ${entry.mime}\r\n`),
+        Buffer.from(`Content-Length: ${entry.length}\r\n\r\n`),
+        selfVfs.readBuffer(vPath)
+      ]);
+      fs.writeSync(outFd, block);
+    }
+  }
+
+  // Mount directory contents into /app
+  function walkAndWrite(currentDir, relativeBase = '') {
+    for (const item of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const full = path.join(currentDir, item.name);
+      const rel = path.posix.join(relativeBase, item.name);
+
+      if (item.isDirectory()) {
+        walkAndWrite(full, rel);
+      } else if (item.isFile()) {
+        const ext = path.extname(item.name).toLowerCase();
+        const mime = MIME_MAP[ext] || 'application/octet-stream';
+        const fileData = fs.readFileSync(full);
+        const virtualLocation = `/app/${rel}`.replace(/\/+/g, '/');
+
+        const block = Buffer.concat([
+          Buffer.from(`\r\n--${BOUNDARY}\r\n`),
+          Buffer.from(`Content-Location: ${virtualLocation}\r\n`),
+          Buffer.from(`Content-Type: ${mime}\r\n`),
+          Buffer.from(`Content-Length: ${fileData.length}\r\n\r\n`),
+          fileData
+        ]);
+        fs.writeSync(outFd, block);
+      }
+    }
+  }
+
+  walkAndWrite(fullSource);
+  fs.writeSync(outFd, Buffer.from(`\r\n--${BOUNDARY}--\r\n`));
+  fs.closeSync(outFd);
+  console.log(`jshar: successfully packed '${sourceDir}' -> '${targetArchive}'`);
+}
+
+// -----------------------------------------------------------------------------
+// PACK-HTML (Produces a single self-contained browser HTML file)
+// -----------------------------------------------------------------------------
+function packHtml(sourceDir, targetArchive) {
+  const fullSource = path.resolve(sourceDir);
+  if (!fs.existsSync(fullSource) || !fs.statSync(fullSource).isDirectory()) {
+    console.error(`jshar: cannot pack '${sourceDir}' (directory not found)`);
+    process.exit(1);
+  }
+
+  // Locate the entry HTML file
+  const candidate = path.join(fullSource, 'index.html');
+  let htmlPath = fs.existsSync(candidate) ? candidate : null;
+  if (!htmlPath) {
+    const htmls = fs.readdirSync(fullSource).filter(f => /(^|\.html$)|(^\.htm$)/i.test(f));
+    if (!htmls.length) {
+      console.error(`jshar: no HTML entry file found in '${sourceDir}'`);
+      process.exit(1);
+    }
+    htmlPath = path.join(fullSource, htmls[0]);
+  }
+
+  let html = fs.readFileSync(htmlPath, 'utf8');
+
+  // Inline <style> blocks
+  html = html.replace(/<style([^>]*)>([\s\S]*?)<\/style>/gi, (m, attrs, body) => {
+    if (!body.trim()) return m;
+    return `<style${attrs}>${body.trim()}</style>`;
+  });
+
+  // Inline <script src="..."> blocks, resolving paths relative to the entry file.
+  // Absolute URLs (CDNs) are left as-is so the page still runs with network access.
+  const scriptRe = /<script(?:\s+src="([^"]+)"(?:\s+type="([^"]*)")?)\s*(?:\/>|>)/gi;
+  html = html.replace(scriptRe, (m, src, type) => {
+    if (!src) return m;
+    if (/^(?:https?:)?\/\//i.test(src)) return m;
+    const abs = path.resolve(path.dirname(htmlPath), src);
+    if (!fs.existsSync(abs)) {
+      console.error(`jshar: cannot resolve script '${src}' relative to '${sourceDir}'`);
+      process.exit(1);
+    }
+    const code = fs.readFileSync(abs, 'utf8');
+    const kind = type && type.indexOf('module') === 0 ? ' type="module"' : '';
+    return `<script${kind}>${code}</script>`;
+  });
+
+  fs.writeFileSync(path.resolve(targetArchive), html, 'utf8');
+  console.log(`jshar: successfully packed '${sourceDir}' -> '${targetArchive}'`);
+}
+
+// -----------------------------------------------------------------------------
+// HTTP SERVER (Mounts /app to /)
+// -----------------------------------------------------------------------------
+function serve(vfs) {
+  const port = Number(process.env.PORT) || 9000;
+  const host = process.env.HOST || '0.0.0.0';
+
+  const server = http.createServer((req, res) => {
+    let cleanUrl = req.url.split('?')[0].split('#')[0];
+
+    // System management route outside /app
+    if (cleanUrl.startsWith('/_jshar/')) {
+      const sub = cleanUrl.replace('/_jshar/', '');
+      if (sub === 'vfs') {
+        const manifest = Array.from(vfs.entries.entries()).map(([k, v]) => ({
+          path: k,
+          size: v.length,
+          mime: v.mime
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(manifest, null, 2));
+      }
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('jshar: unknown system route\n');
+    }
+
+    // Default container index
+    if (cleanUrl === '/' || cleanUrl === '') {
+      cleanUrl = '/index.html';
+    }
+
+    // Map incoming requests directly to /app container space
+    const appTarget = `/app${cleanUrl.startsWith('/') ? cleanUrl : '/' + cleanUrl}`;
+    const entry = vfs.get(appTarget);
+
+    if (!entry) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end(`404 Not Found: ${cleanUrl} (mapped to ${appTarget})\n`);
+    }
+
+    res.writeHead(200, {
+      'Content-Type': entry.mime,
+      'Content-Length': entry.length,
+      'Cache-Control': 'no-cache'
+    });
+
+    const stream = vfs.createReadStream(appTarget);
+    stream.pipe(res);
+  });
+
+  server.listen(port, host, () => {
+    const appFileCount = Array.from(vfs.entries.keys()).filter(k => k.startsWith('/app/')).length;
+    console.log(`jshar: /app mounted (${appFileCount} files) listening on http://${host}:${port}`);
+  });
+}
+
+// -----------------------------------------------------------------------------
+// CLI EXECUTION DISPATCHER
+// -----------------------------------------------------------------------------
+const selfVfs = new VirtualFS(path.resolve(__filename));
+const args = process.argv.slice(2);
+
+const opts = {};
+let nextArg = null;
+while(args.length){
+  const arg = args.shift();
+  if(arg == '--pack-html'){
+    opts.html = true;
+    continue;
+  }
+  if(nextArg){
+    opts[nextArg] = arg;
+    nextArg = null;
+    continue;
+  }
+  if(arg == '-o'){
+    nextArg = 'outfile';
+    continue;
+  }
+  if(arg == 'pack'){
+    opts.command = 'pack';
+    nextArg = 'dir';
+    continue;
+  }
+  console.error('error parsing args', {args, arg, opts, nextArg});
+}
+console.log('got opts', opts);
+if(opts.command == 'pack'){
+  if(opts.html){
+    packHtml(opts.dir, opts.outfile);
+  } else {
+    pack(opts.dir, opts.outfile);
+  }
+} else {
+  // If the archive contains /app payload, run the server
+  const hasApp = Array.from(selfVfs.entries.keys()).some(k => k.startsWith('/app/'));
+  if (hasApp) {
+    serve(selfVfs);
+  } else {
+    console.log('jshar: empty container.');
+    console.log('Usage:');
+    console.log('  ./jshar pack <src_dir> [output.jshar]  # Pack a directory into /app');
+    console.log('  ./jshar pack --pack-html <src_dir> [-o output.html]  # Pack a directory into a single browser HTML');
+    console.log('  PORT=9000 ./app.jshar                 # Mount and serve /app');
+  }
+}
+/*__JSHAR_PAYLOAD_START__*/
