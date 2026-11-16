@@ -1,4 +1,5 @@
-/* data/mario64.js — Super Mario 64 movement for the player.
+// /data/mario64.js
+/*  Super Mario 64 movement for the player.
  
    This is a QuakeC PlayerPreThink: the engine calls it every frame, before anything
    moves, with the player edict. It reads the buttons and the camera (self.v_angle),

@@ -233,11 +233,48 @@ function packHtml(sourceDir, targetArchive) {
     }
     const code = fs.readFileSync(abs, 'utf8');
     const kind = type && type.indexOf('module') === 0 ? ' type="module"' : '';
-    return `<script${kind}>${code}</script>`;
+    const pathHint = `pathHint="${src}"`;
+    return `<script${kind} ${pathHint}>${code}</script>`;
   });
 
   fs.writeFileSync(path.resolve(targetArchive), html, 'utf8');
   console.log(`jshar: successfully packed '${sourceDir}' -> '${targetArchive}'`);
+}
+
+// -----------------------------------------------------------------------------
+// UNPACK-HTML (Restores script files from a packed single-file HTML)
+// -----------------------------------------------------------------------------
+function unpackHtml(inputFile, outDir) {
+  const fullIn = path.resolve(inputFile);
+  if (!fs.existsSync(fullIn) || !fs.statSync(fullIn).isFile()) {
+    console.error(`jshar: cannot unpack '${inputFile}' (file not found)`);
+    process.exit(1);
+  }
+
+  const outDirAbs = path.resolve(outDir);
+  fs.mkdirSync(outDirAbs, { recursive: true });
+
+  let html = fs.readFileSync(fullIn, 'utf8');
+  let scriptCount = 0;
+
+  // Inverse of pack --pack-html:
+  //   <script [type="..."] pathHint="rel/path">CODE</script></script>
+  // The trailing extra </script> is the original tag's close that survived packing.
+  html = html.replace(/<script(?:\s+type="([^"]*)")?\s+pathHint="([^"]+)"\s*>([\s\S]*?)<\/script>(?:<\/script>)?/gi, (m, type, src, code) => {
+    const abs = path.resolve(outDirAbs, src);
+    if (abs !== outDirAbs && !abs.startsWith(outDirAbs + path.sep)) {
+      console.error(`jshar: unsafe pathHint '${src}' in '${inputFile}'`);
+      process.exit(1);
+    }
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, code, 'utf8');
+    scriptCount++;
+    const kind = type != null && type !== '' ? ` type="${type}"` : '';
+    return `<script${kind} src="${src}"></script>`;
+  });
+
+  fs.writeFileSync(path.join(outDirAbs, 'index.html'), html, 'utf8');
+  console.log(`jshar: successfully unpacked '${inputFile}' -> '${outDirAbs}' (${scriptCount} scripts restored)`);
 }
 
 // -----------------------------------------------------------------------------
@@ -310,6 +347,10 @@ while(args.length){
     opts.html = true;
     continue;
   }
+  if(arg == '--unpack-html'){
+    opts.html = true;
+    continue;
+  }
   if(nextArg){
     opts[nextArg] = arg;
     nextArg = null;
@@ -319,9 +360,17 @@ while(args.length){
     nextArg = 'outfile';
     continue;
   }
+  if(arg == '-i'){
+    nextArg = 'infile';
+    continue;
+  }
   if(arg == 'pack'){
     opts.command = 'pack';
     nextArg = 'dir';
+    continue;
+  }
+  if(arg == 'unpack'){
+    opts.command = 'unpack';
     continue;
   }
   console.error('error parsing args', {args, arg, opts, nextArg});
@@ -333,6 +382,12 @@ if(opts.command == 'pack'){
   } else {
     pack(opts.dir, opts.outfile);
   }
+} else if(opts.command == 'unpack' && opts.html){
+  if(opts.infile == null || opts.outfile == null){
+    console.error('jshar: unpack --unpack-html requires -i <input.html> and -o <outdir>');
+    process.exit(1);
+  }
+  unpackHtml(opts.infile, opts.outfile);
 } else {
   // If the archive contains /app payload, run the server
   const hasApp = Array.from(selfVfs.entries.keys()).some(k => k.startsWith('/app/'));
@@ -343,6 +398,7 @@ if(opts.command == 'pack'){
     console.log('Usage:');
     console.log('  ./jshar pack <src_dir> [output.jshar]  # Pack a directory into /app');
     console.log('  ./jshar pack --pack-html <src_dir> [-o output.html]  # Pack a directory into a single browser HTML');
+    console.log('  ./jshar unpack --unpack-html -i input.html -o outdir  # Restore script files from a packed HTML');
     console.log('  PORT=9000 ./app.jshar                 # Mount and serve /app');
   }
 }

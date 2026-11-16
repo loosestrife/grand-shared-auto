@@ -1,4 +1,5 @@
-/* engine.js — game state, the per-frame update, and the main loop. It knows
+// /engine/engine.js
+/* game state, the per-frame update, and the main loop. It knows
    nothing about how the player moves or what a car is: that is data/ (see
    data/mario64.js and data/gtav.js).
 

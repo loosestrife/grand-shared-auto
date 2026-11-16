@@ -1,4 +1,5 @@
-/* data/gtav.js — a drivable car, GTA style.
+// /data/gtav.js
+/* a drivable car, GTA style.
 
    The car is an edict like any other (base.type 'vehicle'), placed when the game
    starts. Its script, CarScript, has two states:

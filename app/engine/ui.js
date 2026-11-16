@@ -1,4 +1,5 @@
-/* ui.js — HUD text, weapon wheel, inventory modal, item actions, and the keys
+// /engine/ui.js
+/* HUD text, weapon wheel, inventory modal, item actions, and the keys
    that drive them (Tab, 1-9, I). Owns the 2D canvas wheel and the HTML bag
    overlay. Never touches the Three.js scenegraph. */
 

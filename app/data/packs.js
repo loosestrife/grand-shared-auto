@@ -1,3 +1,4 @@
+// /data/packs.js
 /* Name a snake_case key as title case ("ice_wraith_teeth" -> "Ice wraith teeth"). */
 const niceName = k => k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 

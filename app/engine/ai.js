@@ -1,4 +1,5 @@
-/* ai.js — what a mob knows and what happens to it: factions, senses, spawning,
+// /engine/ai.js
+/* awhat a mob knows and what happens to it: factions, senses, spawning,
    drops, damage. What it does about any of that is its MobScript (scripting.js).
 
    A mob is an edict with base.type == 'actor'. Its form (stats from packs.mobs)

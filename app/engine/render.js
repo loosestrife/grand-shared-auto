@@ -1,4 +1,5 @@
-/* render.js — Three.js: static geometry per scene, one mesh per edict that has
+// /engine/render.js
+/* Three.js: static geometry per scene, one mesh per edict that has
    something to show, the follow camera. Reads the state and never changes it,
    apart from the camera-shake timer.
 

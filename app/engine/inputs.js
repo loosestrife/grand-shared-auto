@@ -1,4 +1,5 @@
-/* inputs.js — key and mouse bindings, using Quake key names.
+// /engine/inputs.js
+/* key and mouse bindings, using Quake key names.
 
      bind('w', '+forward')   a held button:  pressed('forward'), tapped('forward')
      bind('e', 'exit')       a one-shot command: GSA.inputs.handlers.exit = () => ...

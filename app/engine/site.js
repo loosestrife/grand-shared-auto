@@ -1,3 +1,4 @@
+// /engine/site.js
 /* Site layout: portal geometry and mission binding. Pure functions over packs. */
 /* Where the rings of a site are. x runs east and y north, so the front door
    (and the embassy door) faces south and the back door faces north. */

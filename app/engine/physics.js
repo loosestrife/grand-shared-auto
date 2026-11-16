@@ -1,4 +1,5 @@
-/* physics.js — the engine's collision and movement builtins, like QuakeC's
+// /engine/physics.js
+/* the engine's collision and movement builtins, like QuakeC's
    walkmove and traceline. Content (data/*.js) calls these; nothing here knows
    about Mario, cars or meshes.
 

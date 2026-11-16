@@ -1,4 +1,4 @@
-// data/terminal-velocity.js
+// /data/terminal-velocity.js
 /*  a spaceship you board with E, and a Terminal Velocity style sortie.
 
    The ship is built like the car (data/gtav.js): a vehicle edict placed when the game

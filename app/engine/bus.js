@@ -1,3 +1,4 @@
+// /engine/bus.js
 /* Event bus: the only place engine events are published.
    Content packs and console scripts subscribe here instead of reading engine state.
 

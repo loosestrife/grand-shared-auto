@@ -1,3 +1,4 @@
+// /data/conf.js
 bind('w', '+forward');
 bind('s', '+backward');
 bind('a', '+move_left');
@@ -10,5 +11,6 @@ bind('v', 'item_next');
 bind('mwheelup', 'weapon_prev');
 bind('mwheeldown', 'weapon_next');
 bind('mouse1', '+attack');
+bind('r', '+missile');
 bind('e', 'exit');
 bind('x', '+dive');

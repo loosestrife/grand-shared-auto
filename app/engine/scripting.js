@@ -1,4 +1,5 @@
-/* scripting.js — QuakeC entities with Papyrus scripts on top.
+// /engine/scripting.js
+/*  QuakeC entities with Papyrus scripts on top.
 
    QUAKEC  (every world object is an edict: one slot of the pool S.edicts, slot 0 is the player)
      spawn(fields), remove(e)            claim and free a slot
