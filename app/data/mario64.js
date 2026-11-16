@@ -1,24 +1,24 @@
 /* data/mario64.js — Super Mario 64 movement for the player.
-
+ 
    This is a QuakeC PlayerPreThink: the engine calls it every frame, before anything
    moves, with the player edict. It reads the buttons and the camera (self.v_angle),
    works out the player's velocity (vx, vy) and vertical motion (z, vz), and returns.
    The engine then moves the player with collision (MOVETYPE_WALK) and runs touches.
    It uses only edict fields and the engine builtins in physics.js (RC, WH), so a
    different file can replace it with different movement.
-
+ 
    Moves: jump chain (single, double, triple by jumping again as you land while moving),
    long jump (crouch + jump while moving), backflip (crouch + jump standing), side flip
    (jump while reversing), wall kick, ground pound (crouch in the air), dive (X), slide.
    Buildings and walls can be stood on. Also here, because they belong to these moves:
    the ground-pound shockwave, the dive attack, and footsteps.
-
+ 
    It leaves two fields for the renderer: self.pitch (nose-down tilt) and self.zscale.
    Races (packs.races) supply speed, gravity and jumpV. Needs data/ loaded after
    physics.js and scripting.js, before engine.js. */
 (() => {
   const { RC, WH } = GSA.physics;
-
+ 
   const appr = (p, tx, ty, d) => {
     const dx = tx - p.vx, dy = ty - p.vy, m = Math.hypot(dx, dy);
     if (m <= d) {
@@ -29,7 +29,7 @@
       p.vy += dy / m * d
     }
   };
-
+ 
   /* Movement kit. `inp` is { mx, my, jump, jumpHeld, crouch, crouchTap, dive }: the wanted
      velocity plus this frame's button taps. It sets p.vx, p.vy, p.z, p.vz and the state
      machine p.st (ground, air, hang, slam, dive, slide), and returns true on the frame
@@ -59,8 +59,9 @@
         appr(p, 0, 0, 14 * dt);
         if (u < 1.5) p.st = 'ground'
       } else {
-        const k = cr ? .35 : 1;
-        appr(p, mx * k, my * k, (wl ? 45 : 32) * dt)
+        const k = cr ? .35 : 1,
+          skid = cr && wl && u > sp * k;   /* running into a crouch: shed speed slowly, so there is time to long jump */
+        appr(p, mx * k, my * k, (skid ? 6 : wl ? 45 : 32) * dt)
       }
       if (jd) {
         const mov = u > sp * .55,
@@ -189,7 +190,7 @@
     p.zscale = gnd && cr && p.st == 'ground' ? .6 : 1;
     return landed
   }
-
+ 
   /* A ground-pound shockwave: a trigger whose radius grows every frame. Each target
      is hurt once, as the edge reaches it. */
   class WaveScript extends ObjectReference {
@@ -200,14 +201,14 @@
       this.r0 = self.radius;
       this.RegisterForSingleUpdate(0);
     }
-
+ 
     OnUpdate() {
       const w = this.self, s = GSA.state();
       w.radius = this.r0 + w.base.sp * (s.t - this.born);
       if (w.radius >= w.base.max) this.Delete();
       else this.RegisterForSingleUpdate(0);
     }
-
+ 
     OnTouch(other) {
       const w = this.self, b = w.base, s = GSA.state();
       if (this.hit.has(other) || !GSA.ai.isTarget(other, s)) return;
@@ -221,7 +222,7 @@
       if (b.stun) other.slow = b.stun;
     }
   }
-
+ 
   /* Ground pound landing: a growing ring that hurts, and for the Nord (bowser_slam)
      knocks back and slows. */
   function slamWave(s, p) {
@@ -233,7 +234,7 @@
     if (big) s.shk = .3;
     GSA.ai.emitSound(p.x, p.y, 16, 6);
   }
-
+ 
   /* The engine calls this every frame for the player. */
   function PlayerPreThink(self, dt) {
     const s = GSA.state(), inp = GSA.inputs;
@@ -242,7 +243,7 @@
       self.vx = self.vy = 0;
       return;
     }
-
+ 
     /* WASD relative to the camera: forward is (sin yaw, cos yaw), right is (cos yaw, -sin yaw) */
     const yaw = self.v_angle[1],
       axis = (pos, neg) => (inp.pressed(pos) ? 1 : 0) - (inp.pressed(neg) ? 1 : 0),
@@ -250,16 +251,16 @@
       mx = il ? (ix * Math.cos(yaw) + iy * Math.sin(yaw)) / il * s.race.speed : 0,
       my = il ? (-ix * Math.sin(yaw) + iy * Math.cos(yaw)) / il * s.race.speed : 0,
       crouch = inp.pressed('crouch');
-
+ 
     const landed = kit(s, dt, {
       mx, my, crouch,
       jump: inp.tapped('jump'), jumpHeld: inp.pressed('jump'),
       crouchTap: inp.tapped('crouch'), dive: inp.tapped('dive')
     });
-
+ 
     if (landed && self.pound) slamWave(s, self);
     if (landed) self.pound = 0;
-
+ 
     if ((self.st == 'dive' || self.st == 'slide') && !self.dh) {
       const t = GSA.ai.combatTargets(s).find(m => dist([m.x, m.y], [self.x, self.y]) < 1);
       if (t) {
@@ -267,13 +268,13 @@
         self.dh = 1;
       }
     }
-
+ 
     /* footsteps make noise; crouching is quieter */
     if (self.st == 'ground' && Math.hypot(self.vx, self.vy) > .5 && (self.stepT -= dt) <= 0) {
       self.stepT = crouch ? .6 : .35;
       GSA.ai.emitSound(self.x, self.y, 4, 1);
     }
   }
-
+ 
   window.PlayerPreThink = PlayerPreThink;
 })();

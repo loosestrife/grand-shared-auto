@@ -236,4 +236,4 @@ function draw(s, Y, Pt, dt) {
   ren.render(sc, cam);
 }
 
-(window.GSA = window.GSA || {}).render = { init, draw, setRace, release, spawnImpactEffect, tok };
+(window.GSA = window.GSA || {}).render = { init, draw, setRace, release, spawnImpactEffect, tok, get renderer() { return ren; } };

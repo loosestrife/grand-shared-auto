@@ -145,6 +145,7 @@ const packs = {
 			size: [48, 26],
 			spawn: [16, 9],
 			car: [18, 9],
+			ship: [14, 21],
 			water: [
 				[20, 20, 8, 6],
 				[20, 9, 8, 7],
@@ -181,6 +182,7 @@ const packs = {
 		sample: {
 			name: 'Sample City',
 			size: [44, 26],
+			ship: [18, 21],
 			/* A spawner keeps one mob alive at its spot and brings a new one `delay`
 			   seconds after it dies. The mob's dropTable gives the player its wing / teeth. */
 			spawners: [{
@@ -328,6 +330,7 @@ const packs = {
 			hitCd: 1.2,
 			alarmMult: 1,
 			flags: [],
+			innate_weapons: ['fists'],
 			inventory: {'plasma_gun': 1},
 			build: a => {
 				a(new THREE.SphereGeometry(.5, 12, 10), '#c1440e', 0, .6, 0);

@@ -16,7 +16,9 @@
 
    Hooks for data files:
      PlayerPreThink(self, dt)   global function; runs first each frame (player movement)
-     bus 'start'                emitted after the world is populated (place vehicles, etc.) */
+     bus 'start'                emitted after the world is populated (place vehicles, etc.)
+     GSA.mode                   { update(s, dt), draw(s, dt), hud(s) }: while set, it runs the frame
+                                instead of the city simulation (data/terminal_velocity.js) */
 
 const $ = s => document.querySelector(s),
   cv = $('#c'),
@@ -246,9 +248,16 @@ let last = performance.now();
   const dt = Math.max(Math.min(.05, (t - last) / 1e3), 0);
   last = t;
   if (S && !S.bad) {
-    if (S.step < 3 && !S.bag) upd(S.wheel ? dt * GSA.ui.slowmo : dt);
-    GSA.render.draw(S, Y, Pt, dt);
-    GSA.ui.hud(S);
+    const m = GSA.mode;   /* a data/ file may own the frame (the spaceship sortie) */
+    if (m) {
+      m.update(S, dt);
+      m.draw(S, dt);
+      m.hud(S);
+    } else {
+      if (S.step < 3 && !S.bag) upd(S.wheel ? dt * GSA.ui.slowmo : dt);
+      GSA.render.draw(S, Y, Pt, dt);
+      GSA.ui.hud(S);
+    }
   }
   GSA.inputs.endFrame();
   GSA.ui.wheelDraw();
@@ -262,4 +271,3 @@ Object.assign(window.GSA, {
   state: () => S,
   start
 });
-start({ city: 'sample', race: 'nord', interior: 'stock' });

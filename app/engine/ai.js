@@ -2,7 +2,7 @@
    drops, damage. What it does about any of that is its MobScript (scripting.js).
 
    A mob is an edict with base.type == 'actor'. Its form (stats from packs.mobs)
-   is e.base; its faction, hp and state are on the edict. */
+   is e.base; its faction, health and state are on the edict. */
 
 /* How a faction treats the player: 'hostile', 'flee' or 'neutral'. A function is
    asked with the state. Any faction not listed here is hostile. */
@@ -90,7 +90,7 @@ const spawnMob = (key, x, y, o = {}) => {
     x, y,
     heading: Math.random() * 2 * Math.PI,
     radius: def.radius || .4,
-    hp: def.hp,
+    health: def.health,
     faction: o.faction || def.faction,
     spawnPoint: [x, y],
     movetype: 'MOVETYPE_STEP',

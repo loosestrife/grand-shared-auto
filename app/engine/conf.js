@@ -10,5 +10,7 @@ bind('v', 'item_next');
 bind('mwheelup', 'weapon_prev');
 bind('mwheeldown', 'weapon_next');
 bind('mouse1', '+attack');
+bind('f', '+attack');
+bind('r', '+missile');
 bind('e', 'exit');
 bind('x', '+dive');
