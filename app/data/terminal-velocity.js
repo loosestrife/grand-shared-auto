@@ -882,7 +882,7 @@
   GSA.bus.on('start', ({ S: s }) => {
     abandon();   /* a restart while flying */
     const at = s.city.ship || [22, 20];
-    spawn({ base: { type: 'vehicle', key: 'ship', build: parkedModel }, x: at[0], y: at[1], heading: 0, radius: 1.8, sc: 'city', script: ShipScript });
+    spawn({ base: { type: 'vehicle', key: 'ship', build: parkedModel }, x: at[0], y: at[1], z: GSA.physics.groundZ({ scene: 'city', city: s.city }, at[0], at[1]), heading: 0, radius: 1.8, sc: 'city', script: ShipScript });
   });
   GSA.sortie = { state: () => fl };
 })();

@@ -34,7 +34,7 @@ addEventListener('mousemove', e => {
   if (S.wheel) return GSA.ui.wheelMove(e.movementX, e.movementY);
   if (document.pointerLockElement === cv || e.buttons) {
     Y += e.movementX * .003;
-    Pt = Math.max(.2, Math.min(1.4, Pt + e.movementY * .003));
+    Pt = Math.max(-.5, Math.min(1.4, Pt + e.movementY * .003));   /* below .2 the camera drops to the ground and looks up */
   }
 });
 
@@ -89,6 +89,7 @@ function start(o = {}) {
     race = packs.races[opts.race],
     B = bindSite(mission, city);
   GSA.render.setRace(race);
+  GSA.physics.terrain(city, true);
 
   S = {
     city, I, B, race, interior: opts.interior, log: [...B.log],
@@ -174,7 +175,7 @@ function fire(s, dt) {
   } else if (w.weapon_type == 'bolt' && tap) {
     spawn({
       base: { type: 'projectile', key: 'plasma_bolt', damage: w.damage },
-      x: p.x, y: p.y, z: .9, vx: ax * w.speed, vy: ay * w.speed, radius: .2, owner: p,
+      x: p.x, y: p.y, z: (p.z || 0) + .9, vx: ax * w.speed, vy: ay * w.speed, radius: .2, owner: p,
       movetype: 'MOVETYPE_FLY', solid: 'SOLID_TRIGGER', script: PlasmaBoltScript
     });
     ai.emitSound(p.x, p.y, 10, 3);

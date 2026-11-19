@@ -18,7 +18,7 @@
    Races (packs.races) supply speed, gravity and jumpV. Needs data/ loaded after
    physics.js and scripting.js, before engine.js. */
 (() => {
-  const { RC, WH } = GSA.physics;
+  const { RC, WH, groundZ } = GSA.physics;
  
   const appr = (p, tx, ty, d) => {
     const dx = tx - p.vx, dy = ty - p.vy, m = Math.hypot(dx, dy);
@@ -40,7 +40,7 @@
       p = s.p, r = s.race, sp = r.speed, top = WH(s),
       wl = Math.hypot(mx, my),
       u = Math.hypot(p.vx, p.vy),
-      flr = () => p.z >= top - .2 && RC(p.x, p.y, ws) ? top : 0,
+      flr = () => { const g = groundZ(s, p.x, p.y); return p.z >= g + top - .2 && RC(p.x, p.y, ws) ? g + top : g; },   /* a roof is WH above the ground */
       launch = (vy, spin, ctl, cut) => {
         p.vz = vy;
         p.st = 'air';
@@ -52,7 +52,8 @@
     if (wl && (p.st == 'ground' || p.st == 'air')) p.heading = Math.atan2(mx, my);
     const fx = Math.sin(p.heading), fy = Math.cos(p.heading),
       f0 = flr(),
-      gnd = p.z <= f0 && p.vz <= 0;
+      /* walking, you step down a kerb instead of falling off it */
+      gnd = p.z <= f0 + (p.st == 'ground' || p.st == 'slide' ? .3 : 0) && p.vz <= 0;
     let landed = false;
     if (gnd) {
       p.land += dt;
@@ -152,8 +153,8 @@
       } else if (p.st == 'hang') p.vx = p.vy = 0
     }
     if (!gnd || p.vz > 0) {
-      const h0 = p.z,
-        fl = h0 >= top - .2 && RC(p.x, p.y, ws) ? top : 0;
+      const h0 = p.z, g0 = groundZ(s, p.x, p.y),
+        fl = h0 >= g0 + top - .2 && RC(p.x, p.y, ws) ? g0 + top : g0;
       if (p.st == 'hang') {
         p.tm -= dt;
         p.vz = 0;

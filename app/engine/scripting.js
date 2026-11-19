@@ -432,7 +432,7 @@ function sv_physics(s, dt) {
       e.x += e.vx * dt;
       e.y += e.vy * dt;
       e.z += e.vz * dt;
-      if (!e.free && GSA.physics.hit(s, e.x, e.y, e.z)) e.script.dispatch('OnTouch', null);
+      if (!e.free && (GSA.physics.hit(s, e.x, e.y, e.z) || GSA.physics.inTerrain(s, e.x, e.y, e.z))) e.script.dispatch('OnTouch', null);
     } else if (e.movetype == 'MOVETYPE_WALK') {
       const wall = GSA.physics.mv(s, e, e.vx * dt, e.vy * dt);
       if (wall) {
